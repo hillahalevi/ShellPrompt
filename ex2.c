@@ -1,13 +1,12 @@
 
 
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
-#include <signal.h>
-#include <signal.h>
 #include <wait.h>
 #include <memory.h>
-#include <stdbool.h>
 
 #define MAX_COMMAND 1024
 #define MAX_COMMAND_ARGS 512
@@ -45,13 +44,14 @@ typedef struct CommandInfo {
  * @param b
  * @return true/ false
  */
-bool equal(char * a, char * b){
-    if(strcmp(a,b)==0){
+bool equal(char *a, char *b) {
+    if (strcmp(a, b) == 0) {
         return true;
     }
     return false;
 
 }
+
 /**
  * separate the command line into an array of commands and returns the amount
  * of args in total
@@ -126,32 +126,91 @@ void intake(char *command_line) {
  * @param previousPwd
  * @param currentPwd
  */
-void chdirTry(char * path, char* previousPwd, char *currentPwd){
-    if(chdir(path)==-1){
+void chdirTry(char *path, char *previousPwd, char *currentPwd) {
+    if (chdir(path) == -1) {
         PRINT_ERROR
-    } else{
+    } else {
         UPDATE_WD
     }
 
 }
 
 /**
+ *  remove first quotation mark
+ * @param path
+ */
+void removefirstQuots(char *path) {
+    char temp[strlen(path)];
+    bool flag = false;
+    int i = 0;
+    int c = 0;
+    for (i = 0; i < strlen(path); ++i) {
+        if (!flag && path[i] == '"') {
+            flag = true;
+            continue;
+        } else {
+            temp[c] = path[i];
+            c++;
+        }
+    }
+    temp[c] = '\0';
+    stpcpy(path, temp);
+
+}
+
+/**
+ * remove last quotation mark
+ * @param path
+ */
+void removeLastQuots(char *path) {
+    if (path[strlen(path) - 1] == '"') {
+        path[strlen(path) - 1] = 0;
+    }
+
+}
+
+/**
+ * fix the path to the right format, no  quotation marks
+ *  connect tokens to a legit path
+ * @param commandInfo
+ */
+void pathOrganizer(CommandInfo *commandInfo) {
+    if (commandInfo->lastArgIndex < 1) {
+        //no path
+        return;
+    }
+    removefirstQuots(commandInfo->argv[1]);
+    int i = 2;
+    while (commandInfo->lastArgIndex >= i) {
+
+        strcat(commandInfo->argv[1], " "); //add space
+        strcat(commandInfo->argv[1], commandInfo->argv[i]); //connect tokens
+        i++;
+
+    }
+    removeLastQuots(commandInfo->argv[1]);
+    commandInfo->lastArgIndex = 1;
+
+
+}
+
+
+/**
  * CD act
  * @param commandInfo
  */
-void actCD(CommandInfo *commandInfo) {
-    char previousPwd[MAX_COMMAND] = NOT_SET;
+void actCD(CommandInfo *commandInfo, char *previousPwd) {
     pid_t currPID = getpid();
     printf("%d\n", currPID);
-
+    pathOrganizer(commandInfo);
     char currentPwd[MAX_COMMAND];
     if (getcwd(currentPwd, MAX_COMMAND) == NULL) {
         PRINT_ERROR
     }
     //  global path: cd/cd~
-    if (equal(commandInfo->argv[commandInfo->lastArgIndex], CD)  || equal(commandInfo->argv[1], "~")) {
+    if (equal(commandInfo->argv[commandInfo->lastArgIndex], CD) || equal(commandInfo->argv[1], "~")) {
         //try set working directory to HOME
-        chdirTry(getenv(HOME),previousPwd,currentPwd);
+        chdirTry(getenv(HOME), previousPwd, currentPwd);
     } else if (equal(commandInfo->argv[1], "-")) {
         if (!equal(previousPwd, NOT_SET)) {
             // go to previous folder
@@ -166,10 +225,11 @@ void actCD(CommandInfo *commandInfo) {
             fprintf(stderr, "cd: OLDWD not set\n");
         }
     } else {
-        chdirTry(commandInfo->argv[1],previousPwd,currentPwd);
+        chdirTry(commandInfo->argv[1], previousPwd, currentPwd);
     }
 
 }
+
 
 /**
  * remove all dead processes from the array
@@ -177,7 +237,7 @@ void actCD(CommandInfo *commandInfo) {
  * @param processCounter
  * @return number of living processes
  */
-int updateJobArr(Process jobsArr[], int processCounter){
+int updateJobArr(Process jobsArr[], int processCounter) {
     Process livingProcessesArr[processCounter];
     int livingProcesses = 0;
     int i = 0;
@@ -203,7 +263,7 @@ int updateJobArr(Process jobsArr[], int processCounter){
  * @param processCounter
  */
 int actJOBS(Process jobs_arr[], int processCounter) {
-    processCounter = updateJobArr(jobs_arr,processCounter);
+    processCounter = updateJobArr(jobs_arr, processCounter);
     int i;
     // prints active processes
     for (i = 0; i < processCounter; i++) {
@@ -279,6 +339,7 @@ int main() {
 
     // stores background processes
     Process jobsArr[MAX_BACKGROUND_PROCESSES];
+    char previousPwd[MAX_COMMAND] = NOT_SET;
     int processNum = 0;
     while (1) {
 
@@ -291,16 +352,16 @@ int main() {
 
 
         /**********actions*************/
-        if (equal(commandInfo.command, EXIT) ) {
+        if (equal(commandInfo.command, EXIT)) {
             actEXIT(jobsArr, processNum);
             exit(0);
         } else if (equal(commandInfo.command, CD)) {
-            actCD(&commandInfo);
+            actCD(&commandInfo, previousPwd);
         } else if (equal(commandInfo.command, JOBS)) {
-            processNum= actJOBS(jobsArr, processNum);
+            processNum = actJOBS(jobsArr, processNum);
         }
 
-        /*************standard command*********/
+            /*************standard command*********/
         else {
             pid_t pid = fork();
             // create process for this command
