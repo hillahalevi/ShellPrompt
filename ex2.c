@@ -1,6 +1,8 @@
 
 
-
+/**
+ * hilla halevi 208953083
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -135,37 +137,29 @@ void chdirTry(char *path, char *previousPwd, char *currentPwd) {
 
 }
 
-/**
- *  remove first quotation mark
- * @param path
- */
-void removefirstQuots(char *path) {
-    char temp[strlen(path)];
-    bool flag = false;
-    int i = 0;
-    int c = 0;
-    for (i = 0; i < strlen(path); ++i) {
-        if (!flag && path[i] == '"') {
-            flag = true;
-            continue;
-        } else {
-            temp[c] = path[i];
-            c++;
-        }
-    }
-    temp[c] = '\0';
-    stpcpy(path, temp);
 
-}
 
 /**
- * remove last quotation mark
- * @param path
+ * split a command by specific char
+ * @param commandInfo
+ * @param c
  */
-void removeLastQuots(char *path) {
-    if (path[strlen(path) - 1] == '"') {
-        path[strlen(path) - 1] = 0;
+void splitByChar(CommandInfo *commandInfo,  char c) {
+    char cmd_copy[MAX_COMMAND];
+    strcpy(cmd_copy, commandInfo->cmd);
+    /* adding the right format for command*/
+    char *token;
+    int cmd_args_counter = 0;
+
+    token = strtok(cmd_copy, &c);
+    // split command and append tokens to array arguments
+    while (token != NULL) {
+        strcpy(commandInfo->argv[cmd_args_counter], token);
+        token = strtok(NULL, &c);
+        cmd_args_counter++;
     }
+    strcpy(commandInfo->argv[0], CD);
+
 
 }
 
@@ -179,20 +173,21 @@ void pathOrganizer(CommandInfo *commandInfo) {
         //no path
         return;
     }
-    removefirstQuots(commandInfo->argv[1]);
-    int i = 2;
-    while (commandInfo->lastArgIndex >= i) {
+    char cmd_copy[MAX_COMMAND];
+    strcpy(cmd_copy, commandInfo->cmd);
+    /* adding the right format for command*/
+    if (strchr(cmd_copy, '\'') != NULL) {
 
-        strcat(commandInfo->argv[1], " "); //add space
-        strcat(commandInfo->argv[1], commandInfo->argv[i]); //connect tokens
-        i++;
+        splitByChar(commandInfo,'\'');
+    } else if (strchr(cmd_copy, '\"') != NULL) {
 
+        splitByChar(commandInfo,'\"');
     }
-    removeLastQuots(commandInfo->argv[1]);
-    commandInfo->lastArgIndex = 1;
+
 
 
 }
+
 
 
 /**
@@ -361,7 +356,7 @@ int main() {
             processNum = actJOBS(jobsArr, processNum);
         }
 
-            /*************standard command*********/
+        /*************standard command*********/
         else {
             pid_t pid = fork();
             // create process for this command
